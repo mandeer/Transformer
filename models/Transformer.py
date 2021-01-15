@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
+from torch.autograd import Variable
+import math
+# 参考: https://github.com/jadore801120/attention-is-all-you-need-pytorch
 
 
 def get_pad_mask(seq, pad_idx):
@@ -17,13 +19,13 @@ def get_subsequent_mask(seq):
 
 class ScaledDotProductAttention(nn.Module):
     ''' Scaled Dot-Product Attention '''
-    def __init__(self, temperature, attn_dropout=0.1):
+    def __init__(self, d_k, attn_dropout=0.1):
         super().__init__()
-        self.temperature = temperature
+        self.scaling_factor = d_k ** 0.5
         self.dropout = nn.Dropout(attn_dropout)
 
     def forward(self, q, k, v, mask=None):
-        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
+        attn = torch.matmul(q / self.scaling_factor, k.transpose(2, 3))
         if mask is not None:
             attn = attn.masked_fill(mask == 0, -1e9)
         attn = self.dropout(F.softmax(attn, dim=-1))
@@ -42,7 +44,7 @@ class MultiHeadAttention(nn.Module):
         self.w_ks = nn.Linear(d_model, n_head * d_k, bias=False)
         self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
         self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
-        self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
+        self.attention = ScaledDotProductAttention(d_k=d_k)
         self.dropout = nn.Dropout(dropout)
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
@@ -59,23 +61,23 @@ class MultiHeadAttention(nn.Module):
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
         if mask is not None:
             mask = mask.unsqueeze(1)   # For head axis broadcasting.
-        q, attn = self.attention(q, k, v, mask=mask)
+        output, attn = self.attention(q, k, v, mask=mask)
         # Transpose to move the head dimension back: b x lq x n x dv
         # Combine the last two dimensions to concatenate all the heads together: b x lq x (n*dv)
-        q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
-        q = self.dropout(self.fc(q))
-        q += residual
-        q = self.layer_norm(q)
-        return q, attn
+        output = output.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
+        output = self.dropout(self.fc(output))
+        output += residual
+        output = self.layer_norm(output)
+        return output, attn
 
 
 class PositionwiseFeedForward(nn.Module):
     ''' A two-feed-forward-layer module '''
-    def __init__(self, d_in, d_hid, dropout=0.1):
+    def __init__(self, d_model, d_inner, dropout=0.1):
         super().__init__()
-        self.w_1 = nn.Linear(d_in, d_hid)   # position-wise
-        self.w_2 = nn.Linear(d_hid, d_in)   # position-wise
-        self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
+        self.w_1 = nn.Linear(d_model, d_inner)   # position-wise
+        self.w_2 = nn.Linear(d_inner, d_model)   # position-wise
+        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
@@ -118,29 +120,25 @@ class DecoderLayer(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, d_hid, n_position=200):
         super(PositionalEncoding, self).__init__()
-        # Not a parameter
-        self.register_buffer('pos_table', self._get_sinusoid_encoding_table(n_position, d_hid))
-
-    def _get_sinusoid_encoding_table(self, n_position, d_hid):
-        ''' Sinusoid position encoding table '''
-        def get_position_angle_vec(position):
-            return [position / np.power(10000, 2 * (hid_j // 2) / d_hid) for hid_j in range(d_hid)]
-        sinusoid_table = np.array([get_position_angle_vec(pos_i) for pos_i in range(n_position)])
-        sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
-        sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
-        return torch.FloatTensor(sinusoid_table).unsqueeze(0)
+        pos_table = torch.zeros(n_position, d_hid)
+        position = torch.arange(0., n_position).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0., d_hid, 2) * -(math.log(10000.0) / d_hid))
+        pos_table[:, 0::2] = torch.sin(position * div_term)
+        pos_table[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pos_table', pos_table)
 
     def forward(self, x):
-        return x + self.pos_table[:, :x.size(1)].clone().detach()
+        out = x + Variable(self.pos_table[:, :x.size(1)], requires_grad=False)
+        return out
 
 
 class Encoder(nn.Module):
     ''' A encoder model with self attention mechanism. '''
-    def __init__(self, n_src_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
-                 d_model, d_inner, pad_idx, dropout=0.1, n_position=200):
+    def __init__(self, n_src_vocab, n_layers, n_head, d_k, d_v, d_model, d_inner, pad_idx,
+                 dropout=0.1, n_position=200):
         super().__init__()
-        self.src_word_emb = nn.Embedding(n_src_vocab, d_word_vec, padding_idx=pad_idx)
-        self.position_enc = PositionalEncoding(d_word_vec, n_position=n_position)
+        self.src_word_emb = nn.Embedding(n_src_vocab, d_model, padding_idx=pad_idx)
+        self.position_enc = PositionalEncoding(d_model, n_position=n_position)
         self.dropout = nn.Dropout(p=dropout)
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
@@ -149,7 +147,6 @@ class Encoder(nn.Module):
 
     def forward(self, src_seq, src_mask, return_attns=False):
         enc_slf_attn_list = []
-        # -- Forward
         enc_output = self.dropout(self.position_enc(self.src_word_emb(src_seq)))
         enc_output = self.layer_norm(enc_output)
         for enc_layer in self.layer_stack:
@@ -157,16 +154,16 @@ class Encoder(nn.Module):
             enc_slf_attn_list += [enc_slf_attn] if return_attns else []
         if return_attns:
             return enc_output, enc_slf_attn_list
-        return enc_output,
+        return enc_output
 
 
 class Decoder(nn.Module):
     ''' A decoder model with self attention mechanism. '''
-    def __init__(self, n_trg_vocab, d_word_vec, n_layers, n_head, d_k, d_v,
-                 d_model, d_inner, pad_idx, n_position=200, dropout=0.1):
+    def __init__(self, n_trg_vocab, n_layers, n_head, d_k, d_v, d_model, d_inner, pad_idx,
+                 dropout=0.1, n_position=200):
         super().__init__()
-        self.trg_word_emb = nn.Embedding(n_trg_vocab, d_word_vec, padding_idx=pad_idx)
-        self.position_enc = PositionalEncoding(d_word_vec, n_position=n_position)
+        self.trg_word_emb = nn.Embedding(n_trg_vocab, d_model, padding_idx=pad_idx)
+        self.position_dec = PositionalEncoding(d_model, n_position=n_position)
         self.dropout = nn.Dropout(p=dropout)
         self.layer_stack = nn.ModuleList([
             DecoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
@@ -175,8 +172,7 @@ class Decoder(nn.Module):
 
     def forward(self, trg_seq, trg_mask, enc_output, src_mask, return_attns=False):
         dec_slf_attn_list, dec_enc_attn_list = [], []
-        # -- Forward
-        dec_output = self.dropout(self.position_enc(self.trg_word_emb(trg_seq)))
+        dec_output = self.dropout(self.position_dec(self.trg_word_emb(trg_seq)))
         dec_output = self.layer_norm(dec_output)
         for dec_layer in self.layer_stack:
             dec_output, dec_slf_attn, dec_enc_attn = dec_layer(
@@ -191,30 +187,21 @@ class Decoder(nn.Module):
 class Transformer(nn.Module):
     ''' A sequence to sequence model with attention mechanism. '''
     def __init__(self, n_src_vocab, n_trg_vocab, src_pad_idx, trg_pad_idx,
-                 d_word_vec=512, d_model=512, d_inner=2048,
-                 n_layers=6, n_head=8, d_k=64, d_v=64, dropout=0.1, n_position=200,
+                 d_model=512, d_inner=2048, n_layers=6, n_head=8, d_k=64, d_v=64, dropout=0.1, n_position=200,
                  trg_emb_prj_weight_sharing=True, emb_src_trg_weight_sharing=True):
         super().__init__()
         self.src_pad_idx, self.trg_pad_idx = src_pad_idx, trg_pad_idx
-        self.encoder = Encoder(
-            n_src_vocab=n_src_vocab, n_position=n_position,
-            d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
-            n_layers=n_layers, n_head=n_head, d_k=d_k, d_v=d_v,
-            pad_idx=src_pad_idx, dropout=dropout)
-        self.decoder = Decoder(
-            n_trg_vocab=n_trg_vocab, n_position=n_position,
-            d_word_vec=d_word_vec, d_model=d_model, d_inner=d_inner,
-            n_layers=n_layers, n_head=n_head, d_k=d_k, d_v=d_v,
-            pad_idx=trg_pad_idx, dropout=dropout)
+        self.encoder = Encoder(n_src_vocab=n_src_vocab, n_layers=n_layers, n_head=n_head,
+                               d_k=d_k, d_v=d_v, d_model=d_model, d_inner=d_inner, pad_idx=src_pad_idx,
+                               dropout=dropout, n_position=n_position)
+        self.decoder = Decoder(n_trg_vocab=n_trg_vocab, n_layers=n_layers, n_head=n_head,
+                               d_k=d_k, d_v=d_v, d_model=d_model, d_inner=d_inner, pad_idx=trg_pad_idx,
+                               dropout=dropout, n_position=n_position)
         self.trg_word_prj = nn.Linear(d_model, n_trg_vocab, bias=False)
 
         for p in self.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
-
-        assert d_model == d_word_vec, \
-        'To facilitate the residual connections, \
-         the dimensions of all module outputs shall be the same.'
 
         self.x_logit_scale = 1.
         if trg_emb_prj_weight_sharing:
