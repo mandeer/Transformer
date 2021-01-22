@@ -78,4 +78,4 @@ def getBucketIterator_Multi30k(config):
     train_iterator = BucketIterator(train, batch_size=batch_size, device=config.device, train=True)
     val_iterator = BucketIterator(val, batch_size=batch_size, device=config.device)
 
-    return train_iterator, val_iterator
+    return train_iterator, val_iterator, config
