@@ -7,7 +7,7 @@ import spacy
 import torchtext.data
 import torchtext.datasets
 from torchtext.data import Field, Dataset, BucketIterator
-import PreprocessData.Constants as Constants
+import bucketIterator.Constants as Constants
 
 
 def gererate_Multi30k_data(config):
@@ -58,7 +58,7 @@ def getBucketIterator_Multi30k(config):
     batch_size = config.batch_size
     data = pickle.load(open(config.data_pkl_path, 'rb'))
 
-    config.max_token_seq_len = data['settings'].max_len
+    config.max_token_seq_len = data['settings'].max_word_count
     config.src_pad_idx = data['vocab']['src'].vocab.stoi[Constants.PAD_WORD]
     config.trg_pad_idx = data['vocab']['trg'].vocab.stoi[Constants.PAD_WORD]
 
