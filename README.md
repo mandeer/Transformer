@@ -2,7 +2,7 @@
 
 万物皆可Transformer
 
-* [**Transformer**](#attention is all you need)
+* [**Transformer**](#attentionisallyouneed)
 * [BERT](#bert)
 * [DETR](#detr)
 * [iGPT](#igpt)
@@ -10,7 +10,7 @@
 * [IPT](#ipt)
 
 ------
-## Attention Is All You Need
+## AttentionIsAllYouNeed
 [Transformer](https://arxiv.org/abs/1706.03762)
 抛弃了传统的CNN和RNN, 提出了完全基于attention机制的Transformer, 
 实现seq-to-seq任务.
