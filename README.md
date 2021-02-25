@@ -130,7 +130,35 @@ Fine-tuning时, 使用预训练得到的参数进行初始化,
 ------
 ## DETR
 [DETR](https://arxiv.org/abs/2005.12872)
+是基于Transformers的端到端目标检测, 没有NMS后处理步骤, 没有anchor, 
+且效果堪比Faster RCNN.
 
+### DETR Architecture
+![detr_architecture](imgs/DETR_architecture.png)
+* Backbone:
+    * input: 3 * H0 * W0
+    * output: C=2048, H=H0/32, W = W0/32
+* Transformer encoder:
+    * 使用1x1卷积, 压缩通道个数 C-->d
+    * 将2维数据拉伸成1维数据, d * HW
+    * 添加固定位置编码
+* Transformer decoder: 
+    * 并行解码N个目标, 而不是每次预测输出序列中的一个元素.
+    * object queries是学习到的位置编码.
+    * object queries被decoder转换成output embedding.
+* Prediction Heads(FFNs):
+    * output embedding各自独立的被FFN解码成Cls+Box.
+    * N大于真实的目标个数.
+    * no object相当于"background"
+
+### Object detection set prediction loss
+* predicts & ground truth boxes间的唯一匹配问题.
+* ![loss](imgs/DETR_loss.png)
+    * N > objects num, 使用∅(no object)补齐
+    * 寻找最优分配
+* ![loss](imgs/DETR_loss2.png)
+
+作者发布了其pytorch[实现](https://github.com/facebookresearch/detr)
 
 [返回顶部](#transformer)
 
