@@ -5,6 +5,7 @@
 * [**Transformer**](#attentionisallyouneed)
 * [BERT](#bert)
 * [DETR](#detr)
+* [DeformableDETR](#deformabledetr)
 * [iGPT](#igpt)
 * [VIT](#vit)
 * [IPT](#ipt)
@@ -163,16 +164,42 @@ Fine-tuning时, 使用预训练得到的参数进行初始化,
 [返回顶部](#transformer)
 
 ------
+
+## DeformableDETR
+[Deformable DETR](https://arxiv.org/abs/2010.04159)
+
+[返回顶部](#transformer)
+
+------
 ## iGPT
+[iGPT](https://cdn.openai.com/papers/Generative_Pretraining_from_Pixels_V2.pdf)
+是一个完全无卷积和池化层的神经网络, 
+引领了使用Transformer进行CV任务的浪潮.
+其使用[GPT-2](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
+的网络结构进行图像特征建模, 
+然后将特征直接应用到下游的分类任务中.
+模型显现出对于2D图像特征的理解能力, 包括有效的个体和类别的理解. 
+模型可以在没有人工指导情况下生成连续的图像样本, 
+实现图像补全, 同时可以在多个分类数据集上实现先进的分类性能, 
+并在ImageNet实现了非常接近最优秀无监督方法精度水平.
+
+![iGPT](imgs/iGPT.png)
+* 将图像resize成较低的分辨率, 然后reshape成1维序列. 
+* pre-training, 二选一:
+    * 预测下一个像素的像素值
+    * 预测被mask像素的像素值
+* 使用linear probes or fine-tuning评估模型.
 
 [返回顶部](#transformer)
 
 ------
 ## VIT
+[VIT](https://arxiv.org/abs/2010.11929)
 
 [返回顶部](#transformer)
 
 ------
 ## IPT
+[ipt](https://arxiv.org/abs/2012.00364)
 
 [返回顶部](#transformer)
