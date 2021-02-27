@@ -9,6 +9,10 @@
 * [iGPT](#igpt)
 * [VIT](#vit)
 * [IPT](#ipt)
+* [SETR](#setr)
+* [TransGAN](#transgan)
+* [TransReID](#transreid)
+* [Informer](#informer)
 
 ------
 ## AttentionIsAllYouNeed
@@ -225,5 +229,29 @@ Fine-tuning时, 使用预训练得到的参数进行初始化,
 ------
 ## IPT
 [ipt](https://arxiv.org/abs/2012.00364)
+
+[返回顶部](#transformer)
+
+------
+## SETR
+[SETR](https://arxiv.org/abs/2012.15840)
+
+[返回顶部](#transformer)
+
+------
+## TransGAN
+[TransGAN](https://arxiv.org/abs/2102.07074)
+
+[返回顶部](#transformer)
+
+------
+## TransReID
+[TransReID](https://arxiv.org/abs/2102.04378)
+
+[返回顶部](#transformer)
+
+------
+## Informer
+[Informer](https://arxiv.org/abs/2012.07436)
 
 [返回顶部](#transformer)
