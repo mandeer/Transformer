@@ -41,7 +41,7 @@ position-wise fully connected feed-forward network).
 ![attention](imgs/Transformer-Attention.png)
 * ![Scaled Dot-Product Attention](imgs/Scaled_Dot-product_Attention.png)
 * ![Multi-Head Attention](imgs/Multi-Head_Attention.png)
-* Q~n * dk, K~m * dk, V~m * dv, A~n * dv.
+* Q~nxdk, K~mxdk, V~mxdv, A~nxdv.
 * Query, Key, Value的概念取自于信息检索系统. 
 例如, 你有一个问题Q, 然后去搜索引擎里面搜索, 
 搜索引擎里面有很多文章, 每个文章V有一个能代表其正文内容的标题K, 
@@ -137,7 +137,7 @@ Fine-tuning时, 使用预训练得到的参数进行初始化,
 ### DETR Architecture
 ![detr_architecture](imgs/DETR_architecture.png)
 * Backbone:
-    * input: 3 * H0 * W0
+    * input: 3xH0xW0
     * output: C=2048, H=H0/32, W = W0/32
 * Transformer encoder:
     * 使用1x1卷积, 压缩通道个数 C-->d
@@ -195,6 +195,30 @@ Fine-tuning时, 使用预训练得到的参数进行初始化,
 ------
 ## VIT
 [VIT](https://arxiv.org/abs/2010.11929)
+将Transformer直接应用于图像块序列, 
+在图像分类任务上达到了sota的效果.
+
+### model overview
+![model](imgs/VIT.png)
+* 将图像分割成固定大小的patches; 
+    * patches的大小固定, 个数可变
+    * input image可以替换成CNN提取的feature maps
+* 线性排序并添加位置编码; 
+    * 与[BERT](#bert)类似, 在patches前面添加了一个
+    learnable [class] embedding.
+    * 可学习的位置编码, 学到了2D位置信息, 故无需使用2D位置编码
+    * patches个数变多时, 学习到的位置编码要进行插值处理
+* 标准的Transformer encoder;
+    * 仅使用了Transformer中的encoder
+* 使用MLP进行分类.
+    * 在大的数据集上pre-training, 
+    然后在目标数据集上fine-tuning
+
+### Inspecting
+![vision](imgs/VIT_vision.png)
+* 图1显示了学习到的而没被的embedding filters
+* 图2显示了学习到的Position embedding
+* 图3显示了attention distance, 类似与CNN中的感受野
 
 [返回顶部](#transformer)
 
